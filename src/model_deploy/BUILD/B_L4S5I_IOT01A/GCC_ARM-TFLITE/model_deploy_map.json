@@ -2,9 +2,9 @@
     {
         "module": "../..",
         "size": {
-            ".text": 35602,
-            ".data": 444,
-            ".bss": 8550,
+            ".text": 64008,
+            ".data": 543,
+            ".bss": 14045,
             ".text-delta": 0,
             ".data-delta": 0,
             ".bss-delta": 0
@@ -13,10 +13,10 @@
     {
         "module": "BUILD/B_L4S5I_IOT01A",
         "size": {
-            ".text": 26316,
-            ".data": 309,
-            ".bss": 66131,
-            ".text-delta": 36,
+            ".text": 30960,
+            ".data": 313,
+            ".bss": 66465,
+            ".text-delta": 16,
             ".data-delta": 0,
             ".bss-delta": 0
         }
@@ -24,10 +24,10 @@
     {
         "module": "[fill]",
         "size": {
-            ".text": 222,
-            ".data": 10,
-            ".bss": 34,
-            ".text-delta": 28,
+            ".text": 252,
+            ".data": 17,
+            ".bss": 45,
+            ".text-delta": -16,
             ".data-delta": 0,
             ".bss-delta": 0
         }
@@ -35,8 +35,8 @@
     {
         "module": "[lib]/c.a",
         "size": {
-            ".text": 32340,
-            ".data": 2472,
+            ".text": 48876,
+            ".data": 2474,
             ".bss": 89,
             ".text-delta": 0,
             ".data-delta": 0,
@@ -46,7 +46,7 @@
     {
         "module": "[lib]/gcc.a",
         "size": {
-            ".text": 3436,
+            ".text": 3596,
             ".data": 0,
             ".bss": 0,
             ".text-delta": 0,
@@ -57,7 +57,7 @@
     {
         "module": "[lib]/m.a",
         "size": {
-            ".text": 4304,
+            ".text": 4312,
             ".data": 1,
             ".bss": 0,
             ".text-delta": 0,
@@ -100,10 +100,10 @@
     },
     {
         "summary": {
-            "static_ram": 78088,
+            "static_ram": 84040,
             "static_ram_delta": 0,
-            "total_flash": 105712,
-            "total_flash_delta": 64
+            "total_flash": 155608,
+            "total_flash_delta": 0
         }
     }
 ]
