@@ -21,10 +21,14 @@ void getAcc(Arguments *in, Reply *out);
 
 BufferedSerial pc(USBTX, USBRX);
 void gesture_UI(Arguments *in, Reply *out);
-void tilt_angle();
+void tilt_angle(Arguments *in, Reply *out);
+void detect_angle();
 int detect_gesture();
-inline int absolute_value(int16_t * DataXYZ);
+inline double length(int16_t * DataXYZ);
+inline double square(double x);
+void start_tilt();
 RPCFunction rpcUI(&gesture_UI, "gesture_UI");  // /gesture_UI/run
+RPCFunction rpcangle(&tilt_angle, "tilt_angle");  // /tilt_angle/run
 
 /////**********************************/////
 int PredictGesture(float* output);
@@ -40,6 +44,7 @@ Thread thread_tilt;
 Thread thread_UI;
 
 int angle_threshold = 30;
+bool confirm = false;
 /////**********************************/////
 // Create an area of memory to use for input, output, and intermediate arrays.
 // The size of this will depend on the model you're using, and may need to be
@@ -57,10 +62,13 @@ int main() {
    FILE *devout = fdopen(&pc, "w");
 
    while (true) {
-    /*if (button.rise()){
-        thread_tilt.start(&tilt_angle);
-        break;
-    }*/
+    button.rise(&start_tilt);
+    if (confirm){
+        printf("angle confirm, angle = %d\n", angle_threshold);
+        UIled = 0;
+        //thread_UI.join(); // not close !!!!
+        confirm = false;
+    }
     memset(buf, 0, 256);      // clear buffer
     for(int i=0; i<255; i++) {
         char recv = fgetc(devin);
@@ -73,9 +81,20 @@ int main() {
     RPC::call(buf, outbuf);
     printf("%s\r\n", outbuf);
    }
+
+    printf("flag\n");
 }
 
-void tilt_angle(){
+void start_tilt(){
+    confirm = true;
+}
+
+void tilt_angle(Arguments *in, Reply *out) {
+    thread_tilt.start(&detect_angle);
+    printf("tilt_angle RPC is triggered\n");
+}
+
+void detect_angle(){
     int16_t ref_pDataXYZ[3] = {0, 0, 0};    //ref value
     int16_t pDataXYZ[3],arcDataXYZ[3] = {0};
     double theta = 0, cos_theta = 0;
@@ -83,27 +102,59 @@ void tilt_angle(){
 
     //set ref acc value 
     initled = 1;
-    ThisThread::sleep_for(1s);
+    ThisThread::sleep_for(2s);
     BSP_ACCELERO_AccGetXYZ(ref_pDataXYZ);
     initled = 0;
 
     //start detect angle 
     tiltled = 1;
+    // printf("value of ref_pDataXYZ = %d, %d, %d\n", ref_pDataXYZ[0], ref_pDataXYZ[1], ref_pDataXYZ[2]);
+    
     while (true){
         BSP_ACCELERO_AccGetXYZ(pDataXYZ);
+        // printf("%value of pDataXYZ = %d, %d, %d\n", pDataXYZ[0], pDataXYZ[1], pDataXYZ[2]);
         for (int i = 0; i < 3; i++)
             arcDataXYZ[i] = pDataXYZ[i]- ref_pDataXYZ[i];
-        cos_theta = (pow(absolute_value(ref_pDataXYZ), 2) + pow(absolute_value(pDataXYZ), 2) - pow(absolute_value(arcDataXYZ), 2)) / (2 * absolute_value(ref_pDataXYZ) * absolute_value(pDataXYZ));
-        theta = acos(cos_theta);
-        printf("angle: %lf", theta);
+        // printf("value of arcDataXYZ = %d, %d, %d\n", arcDataXYZ[0], arcDataXYZ[1], arcDataXYZ[2]);
+
+        // printf("absolute value of ref_pDataXYZ = %lf\n", length(ref_pDataXYZ));
+        // printf("absolute value of pDataXYZ = %lf\n", length(pDataXYZ));
+        // printf("absolute value of arcpDataXYZ = %lf\n", length(arcDataXYZ));
+        // printf("square of absolute value of ref_pDataXYZ = %lf\n", pow(length(ref_pDataXYZ), 2));
+        // printf("square of absolute value of pDataXYZ = %lf\n", pow(length(pDataXYZ), 2));
+        // printf("square of absolute value of arcpDataXYZ = %lf\n", pow(length(arcDataXYZ), 2));
+
+        cos_theta = (square(length(ref_pDataXYZ)) + square(length(pDataXYZ)) - square(length(arcDataXYZ))) / (2 * length(ref_pDataXYZ) * length(pDataXYZ));
+        //printf("cos_theta: %lf\n", cos_theta);
+
+        if (cos_theta <= 1.00 && cos_theta >= -1.00){
+            theta = acos(cos_theta) * 180 / 3.141593;
+            printf("angle: %lf\n", theta);
+        }
+        else if (cos_theta > 1.00){
+            theta = acos(1.00) * 180 / 3.141593;
+            printf("angle: %lf\n", theta);
+        }
+        else if (cos_theta < -1.00){
+            theta = acos(-1.00) * 180 / 3.141593;
+            printf("angle: %lf\n", theta);
+        }
+
     }
     tiltled = 0;
 }
 
-inline int absolute_value(int16_t * DataXYZ){
-    return pow(DataXYZ[0], 2) + pow(DataXYZ[1], 2) + pow(DataXYZ[2], 2);
+inline double length(int16_t * DataXYZ){
+    double x, y, z, ans;
+    x = double(DataXYZ[0])/100;
+    y = double(DataXYZ[1])/100;
+    z = double(DataXYZ[2])/100;
+    ans = square(x) + square(y) + square(z);
+    return ans;
 }
-
+inline double square(double x){
+    return x * x;
+};
 /////**********************************/////
 void gesture_UI(Arguments *in, Reply *out) {
     UIled = 1;
