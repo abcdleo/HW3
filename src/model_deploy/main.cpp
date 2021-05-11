@@ -31,10 +31,8 @@ inline double length(int16_t * DataXYZ);
 inline double square(double x);
 RPCFunction rpcUI(&gesture_UI, "gesture_UI");  // /gesture_UI/run
 RPCFunction rpcangle(&tilt_angle, "tilt_angle");  // /tilt_angle/run
-
-/////**********************************/////
+void confirm_angle_threshold();
 int PredictGesture(float* output);
-/////**********************************/////
 
 InterruptIn button(USER_BUTTON);
 DigitalIn sel(D10); //sel
@@ -46,7 +44,6 @@ uLCD_4DGL uLCD(D1, D0, D2);
 Thread thread_tilt;
 Thread thread_UI;
 
-/**********************************/
 WiFiInterface *wifi;
 
 volatile int message_num = 0;
@@ -60,22 +57,28 @@ EventQueue mqtt_queue;
 void messageArrived(MQTT::MessageData& md);
 void publish_message(MQTT::Client<MQTTNetwork, Countdown>* client);
 void close_mqtt();
-/**********************************/
+
+Thread mqtt_thread_angle_present(osPriorityHigh);
+EventQueue mqtt_queue_angle_present;
+void publish_message_angle_present(MQTT::Client<MQTTNetwork, Countdown>* client);
 
 int angle_threshold = 30;
-bool confirm = false;
+double theta_over_angle_threshold[10] = {0};
+int num_over_angle_threshold = 0;
+bool confirm = true;
 bool gesture_key = false;
 bool angle_key = false;
 bool thread_gesture_is_open = false;
 bool thread_angle_is_open = false;
+bool publish_theta = false;
+int ind_publish_theta = 0;
+Ticker flipper;
 
-/////**********************************/////
 // Create an area of memory to use for input, output, and intermediate arrays.
 // The size of this will depend on the model you're using, and may need to be
 // determined by experimentation.
 constexpr int kTensorArenaSize = 60 * 1024;
 uint8_t tensor_arena[kTensorArenaSize];
-/////**********************************/////
 
 int main() {
 
@@ -130,32 +133,32 @@ int main() {
         printf("Fail to subscribe\r\n");
     }
 	mqtt_thread.start(callback(&mqtt_queue, &EventQueue::dispatch_forever));
+    mqtt_thread_angle_present.start(callback(&mqtt_queue_angle_present, &EventQueue::dispatch_forever));
 
-   while (true) {
-    button.rise(mqtt_queue.event(&publish_message, &client));
-    // if (confirm){
-    //     printf("angle confirm, angle = %d\n", angle_threshold);
-    //     UIled = 0;
-	// 	gesture_key = false;
-    //     //thread_UI.join(); // not close !!!!
-    //     //thread_UI.terminate();
-    //     //printf("thread_UI.join()\n");
-	// 	//mqtt_queue.event(&publish_message, &client);
-    //     confirm = false;
-    // }
-    memset(buf, 0, 256);      // clear buffer
-    for(int i=0; i<255; i++) {
-        char recv = fgetc(devin);
-        if (recv == '\r' || recv == '\n') {
-            printf("\r\n");
-            break;
+    while (true) {
+        button.rise(mqtt_queue.event(&publish_message, &client));
+        if (publish_theta){
+            for (ind_publish_theta = 0; ind_publish_theta < 10; ind_publish_theta++){
+                //printf("call mqtt_queue_angle_present\n");
+                mqtt_queue_angle_present.call(&publish_message_angle_present, &client);  //!!!
+                ThisThread::sleep_for(100ms);
+            }
+            // flipper.attach(mqtt_queue_angle_present.event(&publish_message_angle_present, &client), 100ms);
+            // publish_theta = false;
         }
-        buf[i] = fputc(recv, devout);
+        memset(buf, 0, 256);      // clear buffer
+        for(int i=0; i<255; i++) {
+            char recv = fgetc(devin);
+            if (recv == '\r' || recv == '\n') {
+                printf("\r\n");
+                break;
+            }
+            buf[i] = fputc(recv, devout);
+        }
+        RPC::call(buf, outbuf);
+        printf("%s\r\n", outbuf);
     }
-    RPC::call(buf, outbuf);
-    printf("%s\r\n", outbuf);
-   }
-	/****************************/
+
    	int num = 0;
     while (num != 5) {
         client.yield(100);
@@ -179,7 +182,6 @@ int main() {
 
     mqttNetwork.disconnect();
     printf("Successfully closed!\n");
-	/*********************************/
 
     return 0;
 }
@@ -196,7 +198,8 @@ void tilt_angle(Arguments *in, Reply *out) {
 void detect_angle(){
     int16_t ref_pDataXYZ[3] = {0, 0, 0};    //ref value
     int16_t pDataXYZ[3]= {0};
-    double arcDataXYZ[3] = {0};
+    int16_t arcDataXYZ[3] = {0};
+    //double dot_value = 0;
     double theta = 0, cos_theta = 0;
     //char buffer[200];
 
@@ -214,16 +217,15 @@ void detect_angle(){
         if (angle_key) {
             BSP_ACCELERO_AccGetXYZ(pDataXYZ);
             
-            /*
             for (int i = 0; i < 3; i++)
                 arcDataXYZ[i] = pDataXYZ[i]- ref_pDataXYZ[i];
             cos_theta = (square(length(ref_pDataXYZ)) + square(length(pDataXYZ)) - square(length(arcDataXYZ))) / (2 * length(ref_pDataXYZ) * length(pDataXYZ));
-            */
-
+            
+            /*
             for (int i = 0; i < 3; i++)
-                arcDataXYZ[i] = double(pDataXYZ[i] * ref_pDataXYZ[i]) / 10000;
-            cos_theta = sqrt(square(arcDataXYZ[0]) + square(arcDataXYZ[1]) + square(arcDataXYZ[2])) / length(pDataXYZ) / length(ref_pDataXYZ);
-
+                dot_value += double(pDataXYZ[i] * ref_pDataXYZ[i]) / 10000.0;
+            cos_theta = dot_value / length(pDataXYZ) / length(ref_pDataXYZ);
+            */
             // printf("value of ref_pDataXYZ = %d, %d, %d\n", ref_pDataXYZ[0], ref_pDataXYZ[1], ref_pDataXYZ[2]);
             // printf("value of pDataXYZ = %d, %d, %d\n", pDataXYZ[0], pDataXYZ[1], pDataXYZ[2]);
             // printf("value of arcDataXYZ = %lf, %lf, %lf\n", arcDataXYZ[0], arcDataXYZ[1], arcDataXYZ[2]);
@@ -244,10 +246,22 @@ void detect_angle(){
                 theta = acos(-1.00) * 180 / 3.141593;
                 printf("angle: %lf\n", theta);
             }
+
             if (theta > angle_threshold){
-                tiltled = 0;
-                angle_key = false;
+                theta_over_angle_threshold[num_over_angle_threshold++] = theta;
+                //num_over_angle_threshold++;
+                //mqtt_queue.event(&publish_message, &client)
+                if (num_over_angle_threshold>=10){
+                    tiltled = 0;
+                    angle_key = false;
+                    publish_theta = true;
+                    // for (int i = 0; i< 10; i++)
+                    //     printf("theta_over_angle_threshold[%d] = %lf\n", i, theta_over_angle_threshold[i]);
+                }
             }
+            else 
+                num_over_angle_threshold = 0;
+                
             ThisThread::sleep_for(100ms);
         }
     }
@@ -269,6 +283,7 @@ inline double square(double x){
 void gesture_UI(Arguments *in, Reply *out) {
     UIled = 1;
 	gesture_key = true;
+    confirm = true;
     if (!thread_gesture_is_open) {
         thread_UI.start(&detect_gesture);
         thread_gesture_is_open = true;
@@ -347,6 +362,7 @@ int detect_gesture(){
 
   error_reporter->Report("Set up successful...\n");
 
+uLCD.printf("angle_threshold = %d\n", angle_threshold);
   while (true) {
     
         // Attempt to read new data from the accelerometer
@@ -376,7 +392,7 @@ int detect_gesture(){
         // Produce an output
         if (gesture_index < label_num && gesture_key) {
             //error_reporter->Report(config.output_message[gesture_index]);
-            if (angle_threshold == 80)
+            if (angle_threshold == 170)
                 angle_threshold = 30;
             else 
                 angle_threshold += 10;
@@ -426,9 +442,7 @@ int PredictGesture(float* output) {
 
   return this_predict;
 }
-/////**********************************/////
 
-/**********************************/
 void messageArrived(MQTT::MessageData& md) {
     MQTT::Message &message = md.message;
     char msg[300];
@@ -442,14 +456,41 @@ void messageArrived(MQTT::MessageData& md) {
 }
 
 void publish_message(MQTT::Client<MQTTNetwork, Countdown>* client) {
-    
-    confirm = true;
-    UIled = 0;
-	gesture_key = false;
     message_num++;
     MQTT::Message message;
     char buff[100];
-    sprintf(buff, "angle_threshold = %d", angle_threshold);
+
+    if (confirm) {
+        confirm_angle_threshold();
+        sprintf(buff, "angle_threshold = %d", angle_threshold);
+    }
+    else {
+        printf("theta_over_angle_threshold[ind_publish_theta]\n");
+        sprintf(buff, "angle_present = %lf", theta_over_angle_threshold[ind_publish_theta]);    /// !!!!
+    }
+    
+    message.qos = MQTT::QOS0;
+    message.retained = false;
+    message.dup = false;
+    message.payload = (void*) buff;
+    message.payloadlen = strlen(buff) + 1;
+    int rc = client->publish(topic, message);
+
+    printf("rc:  %d\r\n", rc);
+    printf("Puslish message: %s\r\n", buff);
+}
+
+void publish_message_angle_present(MQTT::Client<MQTTNetwork, Countdown>* client) {
+    message_num++;
+    MQTT::Message message;
+    char buff[100];
+
+    if (ind_publish_theta>=10)
+        return;
+
+    //printf("theta_over_angle_threshold[ind_publish_theta]\n");
+    sprintf(buff, "angle_present = %lf", theta_over_angle_threshold[ind_publish_theta]);    /// !!!!
+    
     message.qos = MQTT::QOS0;
     message.retained = false;
     message.dup = false;
@@ -464,4 +505,22 @@ void publish_message(MQTT::Client<MQTTNetwork, Countdown>* client) {
 void close_mqtt() {
     closed = true;
 }
-/**********************************/
+
+void confirm_angle_threshold(){
+    confirm = false;
+    UIled = 0;
+	gesture_key = false;
+    
+    // after confirm, print angle_threshold on uLCD
+    uLCD.cls();
+    uLCD.locate(1, 2);
+    uLCD.text_width(2); //4X size text
+    uLCD.text_height(3);
+    uLCD.color(RED);
+    uLCD.printf("CONFIRM!");
+    uLCD.text_width(1); //4X size text
+    uLCD.text_height(1);
+    uLCD.color(GREEN);
+    uLCD.locate(0, 10);
+    uLCD.printf("angle_threshold = %d\n", angle_threshold);
+};
