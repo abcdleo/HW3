@@ -335,6 +335,7 @@ BUILD/B_L4S5I_IOT01A/GCC_ARM-TFLITE/main.o: main.cpp \
  4dgl-ulcd-se/uLCD_4DGL.h \
  /home/ee2405/ee2405new/mbed-os-build2/mbed-os/platform/include/platform/Stream.h \
  /home/ee2405/ee2405new/mbed-os-build2/mbed-os/platform/include/platform/FileLike.h \
+ /home/ee2405/ee2405new/mbed-os-build2/mbed-os/events/include/events/mbed_events.h \
  accelerometer_handler.h tensorflowlite_mbed/tensorflow/lite/c/common.h \
  tensorflowlite_mbed/tensorflow/lite/micro/micro_error_reporter.h \
  tensorflowlite_mbed/tensorflow/lite/core/api/error_reporter.h \
