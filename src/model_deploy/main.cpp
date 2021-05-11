@@ -2,8 +2,8 @@
 #include "mbed_rpc.h"
 #include <cmath>
 #include "stm32l475e_iot01_accelero.h"
+#include "uLCD_4DGL.h"
 
-/////**********************************/////
 #include "accelerometer_handler.h"
 #include "config.h"
 #include "magic_wand_model_data.h"
@@ -19,7 +19,6 @@
 #include "MQTTNetwork.h"
 #include "MQTTmbed.h"
 #include "MQTTClient.h"
-/////**********************************/////
 
 void getAcc(Arguments *in, Reply *out);
 
@@ -30,7 +29,6 @@ void detect_angle();
 int detect_gesture();
 inline double length(int16_t * DataXYZ);
 inline double square(double x);
-void start_tilt();
 RPCFunction rpcUI(&gesture_UI, "gesture_UI");  // /gesture_UI/run
 RPCFunction rpcangle(&tilt_angle, "tilt_angle");  // /tilt_angle/run
 
@@ -43,6 +41,7 @@ DigitalIn sel(D10); //sel
 DigitalOut UIled(LED1);
 DigitalOut tiltled(LED2);
 DigitalOut initled(LED3);
+uLCD_4DGL uLCD(D1, D0, D2);
 
 Thread thread_tilt;
 Thread thread_UI;
@@ -67,6 +66,8 @@ int angle_threshold = 30;
 bool confirm = false;
 bool gesture_key = false;
 bool angle_key = false;
+bool thread_gesture_is_open = false;
+bool thread_angle_is_open = false;
 
 /////**********************************/////
 // Create an area of memory to use for input, output, and intermediate arrays.
@@ -84,7 +85,6 @@ int main() {
    	FILE *devin = fdopen(&pc, "r");
    	FILE *devout = fdopen(&pc, "w");
 
-	/***************************/
   	wifi = WiFiInterface::get_default_instance();
       	if (!wifi) {
             printf("ERROR: No WiFiInterface found.\r\n");
@@ -130,20 +130,19 @@ int main() {
         printf("Fail to subscribe\r\n");
     }
 	mqtt_thread.start(callback(&mqtt_queue, &EventQueue::dispatch_forever));
-  	/***************************/
 
    while (true) {
-    button.rise(&start_tilt);
-    if (confirm){
-        printf("angle confirm, angle = %d\n", angle_threshold);
-        UIled = 0;
-		angle_key = false;
-        //thread_UI.join(); // not close !!!!
-        //thread_UI.terminate();
-        //printf("thread_UI.join()\n");
-		mqtt_queue.event(&publish_message, &client);
-        confirm = false;
-    }
+    button.rise(mqtt_queue.event(&publish_message, &client));
+    // if (confirm){
+    //     printf("angle confirm, angle = %d\n", angle_threshold);
+    //     UIled = 0;
+	// 	gesture_key = false;
+    //     //thread_UI.join(); // not close !!!!
+    //     //thread_UI.terminate();
+    //     //printf("thread_UI.join()\n");
+	// 	//mqtt_queue.event(&publish_message, &client);
+    //     confirm = false;
+    // }
     memset(buf, 0, 256);      // clear buffer
     for(int i=0; i<255; i++) {
         char recv = fgetc(devin);
@@ -185,19 +184,19 @@ int main() {
     return 0;
 }
 
-void start_tilt(){
-    confirm = true;
-}
-
 void tilt_angle(Arguments *in, Reply *out) {
 	angle_key = true;
-    thread_tilt.start(&detect_angle);
-    printf("tilt_angle RPC is triggered\n");
+    if (!thread_angle_is_open){
+        thread_tilt.start(&detect_angle);
+        thread_angle_is_open = true;
+    }
+    printf("tilt_angle RPC is triggered, angle_key = %d\n", angle_key);
 }
 
 void detect_angle(){
     int16_t ref_pDataXYZ[3] = {0, 0, 0};    //ref value
-    int16_t pDataXYZ[3],arcDataXYZ[3] = {0};
+    int16_t pDataXYZ[3]= {0};
+    double arcDataXYZ[3] = {0};
     double theta = 0, cos_theta = 0;
     //char buffer[200];
 
@@ -209,40 +208,47 @@ void detect_angle(){
 
     //start detect angle 
     tiltled = 1;
-    // printf("value of ref_pDataXYZ = %d, %d, %d\n", ref_pDataXYZ[0], ref_pDataXYZ[1], ref_pDataXYZ[2]);
     
-    while (angle_key){
-        BSP_ACCELERO_AccGetXYZ(pDataXYZ);
-        // printf("%value of pDataXYZ = %d, %d, %d\n", pDataXYZ[0], pDataXYZ[1], pDataXYZ[2]);
-        for (int i = 0; i < 3; i++)
-            arcDataXYZ[i] = pDataXYZ[i]- ref_pDataXYZ[i];
-        // printf("value of arcDataXYZ = %d, %d, %d\n", arcDataXYZ[0], arcDataXYZ[1], arcDataXYZ[2]);
+    
+    while (true){
+        if (angle_key) {
+            BSP_ACCELERO_AccGetXYZ(pDataXYZ);
+            
+            /*
+            for (int i = 0; i < 3; i++)
+                arcDataXYZ[i] = pDataXYZ[i]- ref_pDataXYZ[i];
+            cos_theta = (square(length(ref_pDataXYZ)) + square(length(pDataXYZ)) - square(length(arcDataXYZ))) / (2 * length(ref_pDataXYZ) * length(pDataXYZ));
+            */
 
-        // printf("absolute value of ref_pDataXYZ = %lf\n", length(ref_pDataXYZ));
-        // printf("absolute value of pDataXYZ = %lf\n", length(pDataXYZ));
-        // printf("absolute value of arcpDataXYZ = %lf\n", length(arcDataXYZ));
-        // printf("square of absolute value of ref_pDataXYZ = %lf\n", pow(length(ref_pDataXYZ), 2));
-        // printf("square of absolute value of pDataXYZ = %lf\n", pow(length(pDataXYZ), 2));
-        // printf("square of absolute value of arcpDataXYZ = %lf\n", pow(length(arcDataXYZ), 2));
+            for (int i = 0; i < 3; i++)
+                arcDataXYZ[i] = double(pDataXYZ[i] * ref_pDataXYZ[i]) / 10000;
+            cos_theta = sqrt(square(arcDataXYZ[0]) + square(arcDataXYZ[1]) + square(arcDataXYZ[2])) / length(pDataXYZ) / length(ref_pDataXYZ);
 
-        cos_theta = (square(length(ref_pDataXYZ)) + square(length(pDataXYZ)) - square(length(arcDataXYZ))) / (2 * length(ref_pDataXYZ) * length(pDataXYZ));
-        //printf("cos_theta: %lf\n", cos_theta);
+            // printf("value of ref_pDataXYZ = %d, %d, %d\n", ref_pDataXYZ[0], ref_pDataXYZ[1], ref_pDataXYZ[2]);
+            // printf("value of pDataXYZ = %d, %d, %d\n", pDataXYZ[0], pDataXYZ[1], pDataXYZ[2]);
+            // printf("value of arcDataXYZ = %lf, %lf, %lf\n", arcDataXYZ[0], arcDataXYZ[1], arcDataXYZ[2]);
+            // printf("absolute value of ref_pDataXYZ = %lf\n", length(ref_pDataXYZ));
+            // printf("absolute value of pDataXYZ = %lf\n", length(pDataXYZ));
+            // printf("absolute value of arcpDataXYZ = %lf\n", sqrt(square(arcDataXYZ[0]) + square(arcDataXYZ[1]) + square(arcDataXYZ[2])));
+            // printf("cos_theta: %lf\n", cos_theta);
 
-        if (cos_theta <= 1.00 && cos_theta >= -1.00){
-            theta = acos(cos_theta) * 180 / 3.141593;
-            printf("angle: %lf\n", theta);
-        }
-        else if (cos_theta > 1.00){
-            theta = acos(1.00) * 180 / 3.141593;
-            printf("angle: %lf\n", theta);
-        }
-        else if (cos_theta < -1.00){
-            theta = acos(-1.00) * 180 / 3.141593;
-            printf("angle: %lf\n", theta);
-        }
-        if (theta > angle_threshold){
-            tiltled = 0;
-			angle_key = false;
+            if (cos_theta <= 1.00 && cos_theta >= -1.00){
+                theta = acos(cos_theta) * 180 / 3.141593;
+                printf("angle: %lf\n", theta);
+            }
+            else if (cos_theta > 1.00){
+                theta = acos(1.00) * 180 / 3.141593;
+                printf("angle: %lf\n", theta);
+            }
+            else if (cos_theta < -1.00){
+                theta = acos(-1.00) * 180 / 3.141593;
+                printf("angle: %lf\n", theta);
+            }
+            if (theta > angle_threshold){
+                tiltled = 0;
+                angle_key = false;
+            }
+            ThisThread::sleep_for(100ms);
         }
     }
     
@@ -253,18 +259,21 @@ inline double length(int16_t * DataXYZ){
     x = double(DataXYZ[0])/100;
     y = double(DataXYZ[1])/100;
     z = double(DataXYZ[2])/100;
-    ans = square(x) + square(y) + square(z);
+    ans = sqrt(square(x) + square(y) + square(z));
     return ans;
 }
 inline double square(double x){
     return x * x;
 };
-/////**********************************/////
+
 void gesture_UI(Arguments *in, Reply *out) {
     UIled = 1;
 	gesture_key = true;
-    thread_UI.start(&detect_gesture);
-    printf("gesture_UI RPC is triggered\n");
+    if (!thread_gesture_is_open) {
+        thread_UI.start(&detect_gesture);
+        thread_gesture_is_open = true;
+    }
+    printf("gesture_UI RPC is triggered, gesture_key = %d\n", gesture_key);
 }
 
 int detect_gesture(){
@@ -338,41 +347,42 @@ int detect_gesture(){
 
   error_reporter->Report("Set up successful...\n");
 
-  while (gesture_key) {
+  while (true) {
+    
+        // Attempt to read new data from the accelerometer
+        got_data = ReadAccelerometer(error_reporter, model_input->data.f,
+                                    input_length, should_clear_buffer);
 
-    // Attempt to read new data from the accelerometer
-    got_data = ReadAccelerometer(error_reporter, model_input->data.f,
-                                 input_length, should_clear_buffer);
+        // If there was no new data,
+        // don't try to clear the buffer again and wait until next time
+        if (!got_data) {
+        should_clear_buffer = false;
+        continue;
+        }
 
-    // If there was no new data,
-    // don't try to clear the buffer again and wait until next time
-    if (!got_data) {
-      should_clear_buffer = false;
-      continue;
-    }
+        // Run inference, and report any error
+        TfLiteStatus invoke_status = interpreter->Invoke();
+        if (invoke_status != kTfLiteOk) {
+        error_reporter->Report("Invoke failed on index: %d\n", begin_index);
+        continue;
+        }
 
-    // Run inference, and report any error
-    TfLiteStatus invoke_status = interpreter->Invoke();
-    if (invoke_status != kTfLiteOk) {
-      error_reporter->Report("Invoke failed on index: %d\n", begin_index);
-      continue;
-    }
+        // Analyze the results to obtain a prediction
+        gesture_index = PredictGesture(interpreter->output(0)->data.f);
 
-    // Analyze the results to obtain a prediction
-    gesture_index = PredictGesture(interpreter->output(0)->data.f);
+        // Clear the buffer next time we read data
+        should_clear_buffer = gesture_index < label_num;
 
-    // Clear the buffer next time we read data
-    should_clear_buffer = gesture_index < label_num;
-
-    // Produce an output
-    if (gesture_index < label_num) {
-        //error_reporter->Report(config.output_message[gesture_index]);
-        if (angle_threshold == 180)
-            angle_threshold = 30;
-        else 
-            angle_threshold += 30;
-        printf("angle_threshold = %d\n", angle_threshold);
-    }
+        // Produce an output
+        if (gesture_index < label_num && gesture_key) {
+            //error_reporter->Report(config.output_message[gesture_index]);
+            if (angle_threshold == 80)
+                angle_threshold = 30;
+            else 
+                angle_threshold += 10;
+            uLCD.cls();
+            uLCD.printf("angle_threshold = %d\n", angle_threshold);
+        }
   }
 }
 
@@ -432,10 +442,14 @@ void messageArrived(MQTT::MessageData& md) {
 }
 
 void publish_message(MQTT::Client<MQTTNetwork, Countdown>* client) {
+    
+    confirm = true;
+    UIled = 0;
+	gesture_key = false;
     message_num++;
     MQTT::Message message;
     char buff[100];
-    sprintf(buff, "QoS0 Hello, Python! #%d", message_num);
+    sprintf(buff, "angle_threshold = %d", angle_threshold);
     message.qos = MQTT::QOS0;
     message.retained = false;
     message.dup = false;

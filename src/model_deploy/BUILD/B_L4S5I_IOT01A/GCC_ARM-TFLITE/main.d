@@ -332,6 +332,9 @@ BUILD/B_L4S5I_IOT01A/GCC_ARM-TFLITE/main.o: main.cpp \
  BSP_B-L475E-IOT01/Drivers/BSP/B-L475E-IOT01/../Components/lsm6dsl/lsm6dsl.h \
  BSP_B-L475E-IOT01/Drivers/BSP/B-L475E-IOT01/../Components/lsm6dsl/../Common/accelero.h \
  BSP_B-L475E-IOT01/Drivers/BSP/B-L475E-IOT01/../Components/lsm6dsl/../Common/gyro.h \
+ 4dgl-ulcd-se/uLCD_4DGL.h \
+ /home/ee2405/ee2405new/mbed-os-build2/mbed-os/platform/include/platform/Stream.h \
+ /home/ee2405/ee2405new/mbed-os-build2/mbed-os/platform/include/platform/FileLike.h \
  accelerometer_handler.h tensorflowlite_mbed/tensorflow/lite/c/common.h \
  tensorflowlite_mbed/tensorflow/lite/micro/micro_error_reporter.h \
  tensorflowlite_mbed/tensorflow/lite/core/api/error_reporter.h \
