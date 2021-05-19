@@ -35,7 +35,7 @@ LED3 代表 偵測reference angle;
  
 15. 選擇完角度之後，按下USER_BUTTON，uLCD會顯示CONFIRM，terminal2會接收到設定的角度，LED1會熄滅
  
-16. 在terminal2 輸入 /tilt_angle/run，按下enter，此時LED3會亮起，請在兩秒內將mbed板子平放以利偵測基準角度，待LED3熄滅，LED2會亮起，然後會在terminal1上顯示當前角度
+16. 在terminal1 輸入 /tilt_angle/run，按下enter，此時LED3會亮起，請在兩秒內將mbed板子平放以利偵測基準角度，待LED3熄滅，LED2會亮起，然後會在terminal1上顯示當前角度
  
 17. 緩緩傾斜mbed板，當角度超過設定角度時，會將超過的角度數值傳到terminal2
  
