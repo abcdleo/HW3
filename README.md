@@ -27,7 +27,7 @@ LED3 代表 偵測reference angle;
 
 11. cd ~/HW3/src/model_depoly
 
-12. sudo python3 wifi_mqtt/mqtt_client.py
+12. sudo python3 mqtt_client.py
 
 13. terminal2 會顯示會顯示wifi連線，與ip位址，再來傳五次訊息至terminal1，terminal1會顯示接收到
 
