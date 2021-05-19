@@ -17,7 +17,7 @@ LED3 代表 偵測reference angle;
 
 6. 開 new terminal (此terminal以terminal1代稱)
 
-7. cd ~/ee2405/HW3/src/model_depoly
+7. cd ~/ee2405/HW3/src/model_deploy
 
 8. sudo mbed compile --source . --source ~/ee2405new/mbed-os-build2/ -m B_L4S5I_IOT01A -t GCC_ARM --profile tflite.json -ff 
 
@@ -25,7 +25,7 @@ LED3 代表 偵測reference angle;
 
 10. 開 new terminal (此terminal以terminal2代稱)
 
-11. cd ~/HW3/src/model_deploy
+11. cd ~/ee2405/HW3/src/model_deploy
 
 12. sudo python3 mqtt_client.py
 
