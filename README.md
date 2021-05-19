@@ -17,7 +17,7 @@ LED3 代表 偵測reference angle;
 
 6. 開 new terminal (此terminal以terminal1代稱)
 
-7. cd ~/HW3/src/model_depoly
+7. cd ~/ee2405/HW3/src/model_depoly
 
 8. sudo mbed compile --source . --source ~/ee2405new/mbed-os-build2/ -m B_L4S5I_IOT01A -t GCC_ARM --profile tflite.json -ff 
 
