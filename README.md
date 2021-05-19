@@ -25,7 +25,7 @@ LED3 代表 偵測reference angle;
 
 10. 開 new terminal (此terminal以terminal2代稱)
 
-11. cd ~/HW3/src/model_depoly
+11. cd ~/HW3/src/model_deploy
 
 12. sudo python3 mqtt_client.py
 
